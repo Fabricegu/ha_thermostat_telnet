@@ -18,6 +18,8 @@ _LOGGER = logging.getLogger(__name__)
 TELNET_PORT = 23
 DEFAULT_TIMEOUT = 5
 
+telnet_lock = asyncio.Lock()  # Verrou global pour synchroniser l'accès au Telnet
+
 async def async_setup_platform(
     hass: HomeAssistant,
     config: ConfigType,
@@ -51,6 +53,8 @@ class ThermostatTelnetEntity(SensorEntity):
         self._attr_has_entity_name = True
 
     async def fetch_temperature(self):
+    """Interroge le module esp-link pour obtenir la température"""
+    async with telnet_lock:   # Utilise le verrou pour synchroniser l'accès
         try:
             reader, writer = await asyncio.open_connection(self._host, TELNET_PORT)
             writer.write(self._command.encode('utf-8') + b"\n")
@@ -123,3 +127,5 @@ class TemperatureOrchestrator(SensorEntity):
     @property
     def should_poll(self) -> bool:
         return True
+
+
