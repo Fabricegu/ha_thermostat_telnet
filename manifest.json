@@ -1,0 +1,10 @@
+{
+  "domain": "thermostat_telnet",
+  "name": "Thermostat Telnet",
+  "config_flow": false,
+  "integration_type": "device",
+  "iot_class": "calculated",
+  "version": "1.0.0",
+  "documentation": "https://www.example.com/documentation",
+  "codeowners": ["@Fabricegu"]
+}

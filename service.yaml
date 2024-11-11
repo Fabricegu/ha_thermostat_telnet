@@ -1,6 +1,0 @@
-heating_control:
-  description: "Active ou désactive le chauffage via Telnet"
-  fields:
-    action:
-      description: "Action à effectuer (activer ou désactiver)"
-      example: "activer"
