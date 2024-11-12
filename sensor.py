@@ -1,10 +1,11 @@
-""" Implements the VersatileThermostat sensors component """
+
 import logging
 import asyncio
 
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.const import UnitOfTemperature
@@ -13,10 +14,14 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 
+
 _LOGGER = logging.getLogger(__name__)
 
 TELNET_PORT = 23
 DEFAULT_TIMEOUT = 5
+
+_LOGGER.debug("Import réussi de tous les modules dans sensor.py")
+
 
 telnet_lock = asyncio.Lock()  # Verrou global pour synchroniser l'accès au Telnet
 
@@ -53,43 +58,45 @@ class ThermostatTelnetEntity(SensorEntity):
         self._attr_has_entity_name = True
 
     async def fetch_temperature(self):
-    """Interroge le module esp-link pour obtenir la température"""
-    async with telnet_lock:   # Utilise le verrou pour synchroniser l'accès
-        try:
-            reader, writer = await asyncio.open_connection(self._host, TELNET_PORT)
-            writer.write(self._command.encode('utf-8') + b"\n")
-            await writer.drain()
-
+        async with telnet_lock:  # Utilise le verrou pour synchroniser l'accès
             try:
-                response = await asyncio.wait_for(reader.read(100), timeout=self._timeout)
-                _LOGGER.warning("valeur retournée %s", response)
-            except asyncio.TimeoutError:
-                _LOGGER.warning("Délai d'attente dépassé pour le capteur %s", self._attr_name)
-                self._attr_native_value = None
-                return
+                reader, writer = await asyncio.open_connection(self._host, TELNET_PORT)
+                writer.write(self._command.encode('utf-8') + b"\n")
+                await writer.drain()
 
-            writer.close()
-            await writer.wait_closed()
-
-            response_str = response.decode('utf-8').strip()
-            _LOGGER.warning("valeur du capteur %s", response_str)
-            if response_str.startswith("#"):
-                _LOGGER.error("Erreur reçue de l'esp-link pour le capteur %s : %s", self._attr_name, response_str)
-                self._attr_native_value = None
-            else:
                 try:
-                    self._attr_native_value = float(response_str)
-                    _LOGGER.warning("valeur du capteur transmise = %f", self._attr_native_value)
-                except ValueError:
-                    _LOGGER.error("Conversion en float échouée pour %s", response_str)
+                    response = await asyncio.wait_for(reader.read(100), timeout=self._timeout)
+                    _LOGGER.warning("valeur retournée %s", response)
+                except asyncio.TimeoutError:
+                    _LOGGER.warning("Délai d'attente dépassé pour le capteur %s", self._attr_name)
                     self._attr_native_value = None
-                        # Notifier Home Assistant de la mise à jour    
-            await self.async_update_ha_state(True)
+                    return
 
-        except (ConnectionError, ValueError) as e:
-            _LOGGER.error("Erreur lors de la connexion ou de la conversion pour le capteur %s : %s", self._attr_name, e)
-            self._attr_native_value = None
-            await self.async_update_ha_state(True)
+                writer.close()
+                await writer.wait_closed()
+
+                response_str = response.decode('utf-8').strip()
+                _LOGGER.warning("valeur du capteur %s", response_str)
+                if response_str.startswith("#"):
+                    _LOGGER.error("Erreur reçue de l'esp-link pour le capteur %s : %s", self._attr_name, response_str)
+                    self._attr_native_value = None
+                else:
+                    try:
+                        self._attr_native_value = float(response_str)
+                        _LOGGER.warning("valeur du capteur transmise = %f", self._attr_native_value)
+                    except ValueError:
+                        _LOGGER.error("Conversion en float échouée pour %s", response_str)
+                        self._attr_native_value = None
+
+                # Notifier Home Assistant de la mise à jour    
+                await self.async_update_ha_state(True)
+
+            except (ConnectionError, ValueError) as e:
+                _LOGGER.error("Erreur lors de la connexion ou de la conversion pour le capteur %s : %s", self._attr_name, e)
+                self._attr_native_value = None
+                await self.async_update_ha_state(True)
+
+
 
     @property
     def icon(self) -> str | None:
