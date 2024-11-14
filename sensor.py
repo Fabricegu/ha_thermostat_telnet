@@ -21,10 +21,8 @@ _LOGGER = logging.getLogger(__name__)
 TELNET_PORT = 23
 DEFAULT_TIMEOUT = 15
 
-_LOGGER.debug("Import réussi de tous les modules dans sensor.py")
+_LOGGER.warning("Import réussi de tous les modules dans sensor.py")
 
-
-#telnet_lock = asyncio.Lock()  # Verrou global pour synchroniser l'accès au Telnet
 
 async def async_setup_platform(
     hass: HomeAssistant,
@@ -36,9 +34,11 @@ async def async_setup_platform(
     _LOGGER.warning(host)
     timeout = config.get("timeout", DEFAULT_TIMEOUT)
 
+    '''
     if not host:
         _LOGGER.error("L'adresse IP du module esp-link est requise.")
         return
+    '''
 
     sensors = config.get("sensors", [])
     temperature_entities = [
@@ -68,7 +68,7 @@ class ThermostatTelnetEntity(SensorEntity):
 
                 try:
                     response = await asyncio.wait_for(reader.read(100), timeout=self._timeout)
-                    _LOGGER.warning("valeur retournée %s", response)
+                    #_LOGGER.warning("valeur retournée %s", response)
                 except asyncio.TimeoutError:
                     _LOGGER.error("Délai d'attente dépassé pour le capteur %s", self._attr_name)
                     self._attr_native_value = None
@@ -78,7 +78,7 @@ class ThermostatTelnetEntity(SensorEntity):
                 await writer.wait_closed()
 
                 response_str = response.decode('utf-8').strip()
-                _LOGGER.warning("valeur du capteur %s", response_str)
+                #_LOGGER.warning("valeur du capteur %s", response_str)
                 if response_str.startswith("#"):
                     _LOGGER.error("Erreur reçue de l'esp-link pour le capteur %s : %s", self._attr_name, response_str)
                     self._attr_native_value = None
@@ -125,11 +125,9 @@ class TemperatureOrchestrator(SensorEntity):
         self._entities = entities
         self._attr_name = "température chaudière"
         self._attr_unique_id = "temperature_orchestrator"
-        _LOGGER.warning("instanciation orchestrator")
 
     async def async_update(self):
         for entity in self._entities:
-            _LOGGER.warning("updating orchestrator")
             await entity.fetch_temperature()
             await asyncio.sleep(1)
 
