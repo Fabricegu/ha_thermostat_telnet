@@ -1,17 +1,19 @@
 import logging
 import asyncio
-from homeassistant.components.button import ButtonEntity
+from homeassistant.components.switch import SwitchEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType
+
+from .shared import telnet_lock
 
 _LOGGER = logging.getLogger(__name__)
 
 TELNET_PORT = 23
 DEFAULT_TIMEOUT = 5
 
-# Verrou global pour synchroniser l'accès au Telnet
-telnet_lock = asyncio.Lock()
+# Déclaration du verrou global (assurez-vous qu'il est le même que celui utilisé dans sensor.py)
+#telnet_lock = asyncio.Lock()
 
 async def async_setup_platform(
     hass: HomeAssistant,
@@ -19,7 +21,7 @@ async def async_setup_platform(
     async_add_entities: AddEntitiesCallback,
     discovery_info=None,
 ):
-    """Configurer la plate-forme du bouton de commande de chauffage."""
+    """Configurer la plate-forme du commutateur de commande de chauffage."""
     host = config.get("host")
     timeout = config.get("timeout", DEFAULT_TIMEOUT)
 
@@ -27,25 +29,36 @@ async def async_setup_platform(
         _LOGGER.error("L'adresse IP du module esp-link est requise.")
         return
 
-    # Ajout des entités de boutons pour activer et désactiver le chauffage
+    # Ajout des entités de commutateurs pour activer et désactiver le chauffage
     async_add_entities([
-        HeatingControlButton(host, timeout, "Activer Chauffage"),
-        HeatingControlButton(host, timeout, "Désactiver Chauffage")
+        HeatingControlSwitch(host, timeout, "Activer Chauffage", "$CMDTHE1"),
+        HeatingControlSwitch(host, timeout, "Désactiver Chauffage", "$CMDTHE0")
     ])
 
-class HeatingControlButton(ButtonEntity):
-    """Entité de bouton pour activer/désactiver le chauffage."""
+class HeatingControlSwitch(SwitchEntity):
+    """Entité de commutateur pour activer/désactiver le chauffage."""
 
-    def __init__(self, host: str, timeout: int, name: str):
-        """Initialise l'entité du bouton."""
+    def __init__(self, host: str, timeout: int, name: str, command: str):
         self._host = host
         self._timeout = timeout
         self._attr_name = name
-        self._command = "$CMDTHE1" if "Activer" in name else "$CMDTHE0"
+        self._command = command
+        self._is_on = False  # État initial du commutateur
 
-    async def async_press(self) -> None:
-        """Action à exécuter lors de l'appui sur le bouton."""
+    async def async_turn_on(self, **kwargs):
+        """Allumer le commutateur."""
         if await self.send_command(self._command):
+            self._is_on = True
+            await self.async_update_ha_state()
+            _LOGGER.info("Commande %s envoyée avec succès.", self._attr_name)
+        else:
+            _LOGGER.error("Échec de l'envoi de la commande %s.", self._attr_name)
+
+    async def async_turn_off(self, **kwargs):
+        """Éteindre le commutateur."""
+        if await self.send_command(self._command):
+            self._is_on = False
+            await self.async_update_ha_state()
             _LOGGER.info("Commande %s envoyée avec succès.", self._attr_name)
         else:
             _LOGGER.error("Échec de l'envoi de la commande %s.", self._attr_name)
@@ -80,3 +93,8 @@ class HeatingControlButton(ButtonEntity):
             except (ConnectionError, OSError) as e:
                 _LOGGER.error("Erreur de connexion lors de l'envoi de la commande : %s", e)
                 return False
+
+    @property
+    def is_on(self) -> bool:
+        """Retourne l'état du commutateur."""
+        return self._is_on

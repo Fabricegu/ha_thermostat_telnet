@@ -14,16 +14,17 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 
+from .shared import telnet_lock
 
 _LOGGER = logging.getLogger(__name__)
 
 TELNET_PORT = 23
-DEFAULT_TIMEOUT = 5
+DEFAULT_TIMEOUT = 15
 
 _LOGGER.debug("Import réussi de tous les modules dans sensor.py")
 
 
-telnet_lock = asyncio.Lock()  # Verrou global pour synchroniser l'accès au Telnet
+#telnet_lock = asyncio.Lock()  # Verrou global pour synchroniser l'accès au Telnet
 
 async def async_setup_platform(
     hass: HomeAssistant,
@@ -32,6 +33,7 @@ async def async_setup_platform(
     discovery_info=None,
 ):
     host = config.get("host")
+    _LOGGER.warning(host)
     timeout = config.get("timeout", DEFAULT_TIMEOUT)
 
     if not host:
@@ -68,7 +70,7 @@ class ThermostatTelnetEntity(SensorEntity):
                     response = await asyncio.wait_for(reader.read(100), timeout=self._timeout)
                     _LOGGER.warning("valeur retournée %s", response)
                 except asyncio.TimeoutError:
-                    _LOGGER.warning("Délai d'attente dépassé pour le capteur %s", self._attr_name)
+                    _LOGGER.error("Délai d'attente dépassé pour le capteur %s", self._attr_name)
                     self._attr_native_value = None
                     return
 
