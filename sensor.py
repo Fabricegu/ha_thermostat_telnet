@@ -1,149 +1,84 @@
-
 import logging
 import asyncio
-
-from homeassistant.core import HomeAssistant
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-
+import telnetlib3
 from homeassistant.components.sensor import SensorEntity
-from homeassistant.helpers.typing import ConfigType
-from homeassistant.const import UnitOfTemperature
-from homeassistant.components.sensor import (
-    SensorDeviceClass,
-    SensorStateClass,
-)
-
-from .shared import telnet_lock
+from homeassistant.const import TEMP_CELSIUS
 
 _LOGGER = logging.getLogger(__name__)
 
-TELNET_PORT = 23
-DEFAULT_TIMEOUT = 15
+DOMAIN = "custom_telnet_sensor"
 
-_LOGGER.warning("Import réussi de tous les modules dans sensor.py")
+def setup_platform(hass, config, add_entities, discovery_info=None):
+    """Configure les capteurs et ajoute les entités."""
+    ip_address = config.get("ip_address")
+    port = config.get("port")
+    name = config.get("name", "Telnet Sensor")
+    timeout = config.get("timeout", 10)  # Timeout par défaut de 10 secondes
 
-
-async def async_setup_platform(
-    hass: HomeAssistant,
-    config: ConfigType,
-    async_add_entities: AddEntitiesCallback,
-    discovery_info=None,
-):
-    host = config.get("host")
-    _LOGGER.warning(host)
-    timeout = config.get("timeout", DEFAULT_TIMEOUT)
-
-    '''
-    if not host:
-        _LOGGER.error("L'adresse IP du module esp-link est pour sensor  requise.")
+    if not ip_address or not port:
+        _LOGGER.error("L'adresse IP et le port doivent être spécifiés")
         return
-    '''
 
-    sensors = config.get("sensors", [])
-    temperature_entities = [
-        ThermostatTelnetEntity(hass, host, timeout, sensor["command"], sensor["name"])
-        for sensor in sensors
-    ]
+    # Initialisation explicite des entités
+    sensor_1 = TelnetTemperatureSensor(ip_address, port, f"{name} Température 1", "$RDTEMP0", timeout)
+    sensor_2 = TelnetTemperatureSensor(ip_address, port, f"{name} Température 2", "$RDTEMP1", timeout)
+    sensor_3 = TelnetTemperatureSensor(ip_address, port, f"{name} Température 3", "$RDTEMP2", timeout)
 
-    orchestrator = TemperatureOrchestrator(hass, temperature_entities)
-    async_add_entities(temperature_entities + [orchestrator], True)
+    # Ajout explicite des entités
+    add_entities([sensor_1, sensor_2, sensor_3])
 
-class ThermostatTelnetEntity(SensorEntity):
-    def __init__(self, hass: HomeAssistant, host: str, timeout: int, command: str, name: str) -> None:
-        self._host = host
-        self._timeout = timeout
-        self._command = command
-        self._attr_name = name
-        _LOGGER.warning(self.name)
-        self._attr_native_value = None
-        self._attr_has_entity_name = True
+class TelnetTemperatureSensor(SensorEntity):
+    """Représentation d'un capteur de température récupéré via Telnet."""
 
-        _LOGGER.warning(f"l'unique id pour le moment vaut {self._attr_unique_id}")
-
-        # Vérifiez si l'ID existe déjà, si oui, utilisez-le sans suffixe
-        if self._attr_unique_id in hass.states.async_entity_ids():
-            _LOGGER.warning(f"L'ID {self._attr_unique_id} existe déjà, mais sera réutilisé.")
-        else:
-            self._attr_unique_id = f"{name.replace(' ', '_').lower()}"
-            _LOGGER.warning(self._attr_unique_id)
-            _LOGGER.warning(f"l'unique id vaut {self._attr_unique_id}")
-
-    async def fetch_temperature(self):
-        async with telnet_lock:  # Utilise le verrou pour synchroniser l'accès
-            try:
-                reader, writer = await asyncio.open_connection(self._host, TELNET_PORT)
-                writer.write(self._command.encode('utf-8') + b"\n")
-                await writer.drain()
-
-                try:
-                    response = await asyncio.wait_for(reader.read(100), timeout=self._timeout)
-                    #_LOGGER.warning("valeur retournée %s", response)
-                except asyncio.TimeoutError:
-                    _LOGGER.error("Délai d'attente dépassé pour le capteur %s", self._attr_name)
-                    self._attr_native_value = None
-                    return
-
-                writer.close()
-                await writer.wait_closed()
-
-                response_str = response.decode('utf-8').strip()
-                #_LOGGER.warning("valeur du capteur %s", response_str)
-                if response_str.startswith("#"):
-                    _LOGGER.error("Erreur reçue de l'esp-link pour le capteur %s : %s", self._attr_name, response_str)
-                    self._attr_native_value = None
-                else:
-                    try:
-                        self._attr_native_value = float(response_str)
-                        _LOGGER.warning("valeur du capteur transmise = %f", self._attr_native_value)
-                    except ValueError:
-                        _LOGGER.error("Conversion en float échouée pour %s", response_str)
-                        self._attr_native_value = None
-
-                # Notifier Home Assistant de la mise à jour    
-                await self.async_update_ha_state(True)
-
-            except (ConnectionError, ValueError) as e:
-                _LOGGER.error("Erreur lors de la connexion ou de la conversion pour le capteur %s : %s", self._attr_name, e)
-                self._attr_native_value = None
-                await self.async_update_ha_state(True)
-
-
+    def __init__(self, ip_address, port, name, command, timeout):
+        self._ip_address = ip_address
+        self._port = port
+        self._name = name
+        self._command = command  # Commande Telnet spécifique pour obtenir la température
+        self._state = None
+        self._timeout = timeout  # Timeout ajustable
+        self._lock = asyncio.Lock()
 
     @property
-    def icon(self) -> str | None:
-        return "mdi:thermometer"
+    def name(self):
+        """Retourne le nom de l'entité."""
+        return self._name
 
     @property
-    def device_class(self) -> SensorDeviceClass | None:
-        return SensorDeviceClass.TEMPERATURE
+    def state(self):
+        """Retourne l'état de la température."""
+        return self._state
 
     @property
-    def state_class(self) -> SensorStateClass | None:
-        return SensorStateClass.MEASUREMENT
-
-    @property
-    def native_unit_of_measurement(self) -> str | None:
-        return UnitOfTemperature.CELSIUS
-
-    @property
-    def should_poll(self) -> bool:
-        return False
-
-class TemperatureOrchestrator(SensorEntity):
-    def __init__(self, hass: HomeAssistant, entities: list[ThermostatTelnetEntity]) -> None:
-        self._entities = entities
-        self._attr_name = "température chaudière"
-        self._attr_unique_id = "temperature_orchestrator"
+    def unit_of_measurement(self):
+        """Retourne l'unité de mesure."""
+        return TEMP_CELSIUS
 
     async def async_update(self):
-        _LOGGER.warning("async update")
-        for entity in self._entities:
-            await entity.fetch_temperature()
-            await asyncio.sleep(1)
+        """Récupère la valeur de température via Telnet avec gestion de verrou et timeout."""
+        async with self._lock:
+            try:
+                _LOGGER.debug("Tentative de connexion Telnet à %s:%s pour %s", self._ip_address, self._port, self._command)
+                async with telnetlib3.open_connection(self._ip_address, self._port) as conn:
+                    await asyncio.wait_for(conn.write(f'{self._command}\n'), timeout=self._timeout)
+                    response = await asyncio.wait_for(conn.read_until("\n"), timeout=self._timeout)
+                    response = response.strip()
 
-    @property
-    def should_poll(self) -> bool:
-        return True
+                    # Vérification de la réponse
+                    if response.startswith("#"):
+                        _LOGGER.error("Erreur détectée lors de la récupération de la température avec %s", self._command)
+                        self._state = "error"
+                    else:
+                        try:
+                            self._state = float(response)
+                        except ValueError:
+                            _LOGGER.error("Impossible de convertir la réponse en float : %s", response)
+                            self._state = "error"
 
-
+                    _LOGGER.debug("Donnée reçue pour %s : %s", self._name, response)
+            except asyncio.TimeoutError:
+                _LOGGER.error("Timeout lors de la récupération de la température pour %s", self._command)
+                self._state = "timeout"
+            except Exception as e:
+                _LOGGER.error("Erreur lors de la connexion Telnet : %s", e)
+                self._state = "unavailable"

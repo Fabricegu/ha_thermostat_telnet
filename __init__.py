@@ -1,39 +1,9 @@
-"""Initialisation du package de l'intégration"""
-import logging
-import asyncio
+"""Initialisation du composant personnalisé Telnet Sensor pour Home Assistant."""
 
-from homeassistant.core import HomeAssistant
-from homeassistant.const import CONF_HOST, CONF_TIMEOUT
+DOMAIN = "custom_telnet_sensor"
 
-from .const import DOMAIN, PLATFORMS, DEFAULT_TIMEOUT
-
-_LOGGER = logging.getLogger(__name__)
-
-async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Configure le composant personnalisé via configuration.yaml."""
-    _LOGGER.info("Chargement de la configuration pour %s", DOMAIN)
-    domain_config = config.get(DOMAIN)
-    if not domain_config:
-        return True
-
-    host = domain_config.get(CONF_HOST)
-    timeout = domain_config.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)
-
-    if not host:
-        _LOGGER.warning("Le paramètre 'host' est manquant dans la configuration.")
-        return False
-
-    _LOGGER.warning(
-        "Initialisation de l'intégration %s avec les plateformes : %s",
-        DOMAIN,
-        PLATFORMS,
-    )
-
-    # Charger les plateformes spécifiées
-    for platform in PLATFORMS:
-        _LOGGER.info("Chargement de la plateforme %s", platform)
-        hass.async_create_task(
-            hass.helpers.discovery.async_load_platform(platform, DOMAIN, {}, config)
-        )
-
+def setup(hass, config):
+    """Configure le domaine du composant."""
+    # Si vous souhaitez exécuter du code au démarrage de Home Assistant, vous pouvez le faire ici.
+    hass.states.set(f"{DOMAIN}.loaded", "true")
     return True
