@@ -20,10 +20,10 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     timeout = domain_config.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)
 
     if not host:
-        _LOGGER.error("Le paramètre 'host' est manquant dans la configuration.")
+        _LOGGER.warning("Le paramètre 'host' est manquant dans la configuration.")
         return False
 
-    _LOGGER.info(
+    _LOGGER.warning(
         "Initialisation de l'intégration %s avec les plateformes : %s",
         DOMAIN,
         PLATFORMS,

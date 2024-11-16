@@ -36,7 +36,7 @@ async def async_setup_platform(
 
     '''
     if not host:
-        _LOGGER.error("L'adresse IP du module esp-link est requise.")
+        _LOGGER.error("L'adresse IP du module esp-link est pour sensor  requise.")
         return
     '''
 
@@ -55,9 +55,19 @@ class ThermostatTelnetEntity(SensorEntity):
         self._timeout = timeout
         self._command = command
         self._attr_name = name
-        self._attr_unique_id = f"{name.replace(' ', '_').lower()}"
+        _LOGGER.warning(self.name)
         self._attr_native_value = None
         self._attr_has_entity_name = True
+
+        _LOGGER.warning(f"l'unique id pour le moment vaut {self._attr_unique_id}")
+
+        # Vérifiez si l'ID existe déjà, si oui, utilisez-le sans suffixe
+        if self._attr_unique_id in hass.states.async_entity_ids():
+            _LOGGER.warning(f"L'ID {self._attr_unique_id} existe déjà, mais sera réutilisé.")
+        else:
+            self._attr_unique_id = f"{name.replace(' ', '_').lower()}"
+            _LOGGER.warning(self._attr_unique_id)
+            _LOGGER.warning(f"l'unique id vaut {self._attr_unique_id}")
 
     async def fetch_temperature(self):
         async with telnet_lock:  # Utilise le verrou pour synchroniser l'accès
@@ -127,6 +137,7 @@ class TemperatureOrchestrator(SensorEntity):
         self._attr_unique_id = "temperature_orchestrator"
 
     async def async_update(self):
+        _LOGGER.warning("async update")
         for entity in self._entities:
             await entity.fetch_temperature()
             await asyncio.sleep(1)
