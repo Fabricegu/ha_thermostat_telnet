@@ -38,6 +38,12 @@ class TelnetTemperatureSensor(SensorEntity):
         self._state = None
         self._timeout = timeout  # Timeout ajustable
         self._lock = asyncio.Lock()
+        self._unique_id = f"{ip_address}_{port}_{command}"
+
+    @property
+    def unique_id(self):
+        """Retourne l'identifiant unique de l'entité."""
+        return self._unique_id
 
     @property
     def name(self):
