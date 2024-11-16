@@ -1,6 +1,6 @@
 import logging
 import asyncio
-import telnetlib3
+#import telnetlib3
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import TEMP_CELSIUS
 
@@ -18,7 +18,7 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     if not ip_address or not port:
         _LOGGER.error("L'adresse IP et le port doivent être spécifiés")
         return
-
+    _LOGGER.warning("initilisation des entités")
     # Initialisation explicite des entités
     sensor_1 = TelnetTemperatureSensor(ip_address, port, f"{name} Température 1", "$RDTEMP0", timeout)
     sensor_2 = TelnetTemperatureSensor(ip_address, port, f"{name} Température 2", "$RDTEMP1", timeout)
@@ -62,6 +62,7 @@ class TelnetTemperatureSensor(SensorEntity):
 
     async def async_update(self):
         """Récupère la valeur de température via Telnet avec gestion de verrou et timeout."""
+        _LOGGER.warning("appel de async_update")
         async with self._lock:
             try:
                 _LOGGER.debug("Tentative de connexion Telnet à %s:%s pour %s", self._ip_address, self._port, self._command)

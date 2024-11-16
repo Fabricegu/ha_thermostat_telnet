@@ -1,6 +1,6 @@
 """Initialisation du composant personnalisé Telnet Sensor pour Home Assistant."""
 
-DOMAIN = "custom_telnet_sensor"
+DOMAIN = "thermostat_telnet"
 
 def setup(hass, config):
     """Configure le domaine du composant."""
